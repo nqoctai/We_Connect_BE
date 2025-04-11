@@ -61,4 +61,30 @@ public class AuthService {
         return resUserDTO;
 
     }
+
+    public ResUserDTO getCurrentUser() throws AppException {
+        String email = SecurityUtil.getCurrentUserLogin().isPresent() ? SecurityUtil.getCurrentUserLogin().get()
+                : "";
+        User userDB = userService.getUserByEmail(email);
+        if (userDB == null) {
+            throw new AppException("User not found");
+        }
+        ResUserDTO res = userMapper.toResUserDTO(userDB);
+        return res;
+    }
+
+    public ResLoginDTO getRefreshToken(String email) throws AppException {
+        User userDB = userService.getUserByEmail(email);
+        if (userDB == null) {
+            throw new AppException("User not found");
+        }
+
+        ResUserDTO user = userMapper.toResUserDTO(userDB);
+        String accessToken = securityUtil.createAccessToken(userDB.getEmail());
+        ResLoginDTO res = ResLoginDTO.builder()
+                .accessToken(accessToken)
+                .user(user)
+                .build();
+        return res;
+    }
 }

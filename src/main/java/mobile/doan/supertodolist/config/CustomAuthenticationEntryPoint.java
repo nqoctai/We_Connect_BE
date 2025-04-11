@@ -23,24 +23,24 @@ import mobile.doan.supertodolist.dto.response.ApiResponse;
 @RequiredArgsConstructor
 public class CustomAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
-    AuthenticationEntryPoint delegate = new BearerTokenAuthenticationEntryPoint();
+        AuthenticationEntryPoint delegate = new BearerTokenAuthenticationEntryPoint();
 
-    ObjectMapper mapper;
+        ObjectMapper mapper;
 
-    @Override
-    public void commence(HttpServletRequest request, HttpServletResponse response,
-            AuthenticationException authException) throws IOException, ServletException {
-        this.delegate.commence(request, response, authException);
-        response.setContentType("application/json;charset=UTF-8");
-        String errorMessage = Optional.ofNullable(authException.getCause())
-                .map(Throwable::getMessage)
-                .orElse(authException.getMessage());
-        ApiResponse<Object> res = ApiResponse.<Object>builder()
-                .status(HttpStatus.UNAUTHORIZED.value())
-                .error(errorMessage)
-                .message("Token không hợp lệ (hết hạn, không đúng định dạng, hoặc không truyền JWT ở header)...aaaaaa")
-                .build();
-        mapper.writeValue(response.getWriter(), res);
-    }
+        @Override
+        public void commence(HttpServletRequest request, HttpServletResponse response,
+                        AuthenticationException authException) throws IOException, ServletException {
+                this.delegate.commence(request, response, authException);
+                response.setContentType("application/json;charset=UTF-8");
+                String errorMessage = Optional.ofNullable(authException.getCause())
+                                .map(Throwable::getMessage)
+                                .orElse(authException.getMessage());
+                ApiResponse<Object> res = ApiResponse.<Object>builder()
+                                .status(HttpStatus.UNAUTHORIZED.value())
+                                .error(errorMessage)
+                                .message("Token has expired or is invalid")
+                                .build();
+                mapper.writeValue(response.getWriter(), res);
+        }
 
 }
