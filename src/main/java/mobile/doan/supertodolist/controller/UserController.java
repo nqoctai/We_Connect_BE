@@ -20,6 +20,7 @@ import mobile.doan.supertodolist.dto.response.ApiResponse;
 import mobile.doan.supertodolist.dto.response.ResPaginationDTO;
 import mobile.doan.supertodolist.dto.response.ResUserDTO;
 import mobile.doan.supertodolist.model.Post;
+import mobile.doan.supertodolist.model.User;
 import mobile.doan.supertodolist.services.UserService;
 
 @RestController
@@ -42,6 +43,17 @@ public class UserController {
                 .build();
         return ResponseEntity.status(HttpStatus.CREATED).body(apiResponse);
 
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<ApiResponse<ResPaginationDTO>> getAllUserWithPagination(@Filter Specification<User> spec,
+            Pageable pageable) {
+        ResPaginationDTO res = userService.getAllUserWithPagination(spec, pageable);
+        return ResponseEntity.ok(ApiResponse.<ResPaginationDTO>builder()
+                .status(HttpStatus.OK.value())
+                .message("Get all user successfully")
+                .data(res)
+                .build());
     }
 
 }

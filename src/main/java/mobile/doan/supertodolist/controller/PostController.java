@@ -31,7 +31,7 @@ public class PostController {
     final PostService postService;
     final UserService userService;
 
-    @PostMapping("/post")
+    @PostMapping("/posts")
     public ResponseEntity<ApiResponse<Post>> createPost(@RequestBody ReqCreatePostDTO req) throws AppException {
         Post post = postService.createPost(req);
         return ResponseEntity.ok(ApiResponse.<Post>builder()
