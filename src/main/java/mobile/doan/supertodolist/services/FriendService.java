@@ -6,6 +6,7 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
 import mobile.doan.supertodolist.dto.request.ReqFriendDTO;
 import mobile.doan.supertodolist.dto.response.ResFriendDTO;
@@ -20,112 +21,139 @@ import mobile.doan.supertodolist.util.SecurityUtil;
 @Service
 @RequiredArgsConstructor
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE, makeFinal = true)
+@Slf4j
 public class FriendService {
 
-    FriendRepository friendRepository;
-    UserRepository userRepository;
-    FriendMapper friendMapper;
+        FriendRepository friendRepository;
+        UserRepository userRepository;
+        FriendMapper friendMapper;
+        WebSocketService webSocketService;
 
-    public ResFriendDTO sendFriendRequest(ReqFriendDTO reqFriendDTO) {
-        // Get current logged-in user
-        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
-                () -> new RuntimeException("User not authenticated"));
-        User currentUser = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        public ResFriendDTO sendFriendRequest(ReqFriendDTO reqFriendDTO) {
+                try {
+                        // Get current logged-in user
+                        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
+                                        () -> new RuntimeException("User not authenticated"));
+                        User currentUser = userRepository.findByEmail(currentUserEmail)
+                                        .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // Get target user
-        User receiverUser = userRepository.findById(reqFriendDTO.getReceiverId())
-                .orElseThrow(() -> new RuntimeException("Receiver user not found"));
+                        // Get target user
+                        User receiverUser = userRepository.findById(reqFriendDTO.getReceiverId())
+                                        .orElseThrow(() -> new RuntimeException("Receiver user not found"));
 
-        // Check if friend request already exists
-        if (friendRepository.existsBySenderAndReceiverAndStatus(currentUser, receiverUser, FriendStatus.PENDING) ||
-                friendRepository.existsBySenderAndReceiverAndStatus(currentUser, receiverUser, FriendStatus.ACCEPTED)) {
-            throw new RuntimeException("Friend request already exists or users are already friends");
+                        // Check if friend request already exists
+                        if (friendRepository.existsBySenderAndReceiverAndStatus(currentUser, receiverUser,
+                                        FriendStatus.PENDING) ||
+                                        friendRepository.existsBySenderAndReceiverAndStatus(currentUser, receiverUser,
+                                                        FriendStatus.ACCEPTED)) {
+                                throw new RuntimeException(
+                                                "Friend request already exists or users are already friends");
+                        }
+
+                        // Create new friend request
+                        Friend friend = new Friend();
+                        friend.setSender(currentUser);
+                        friend.setReceiver(receiverUser);
+                        friend.setStatus(FriendStatus.PENDING);
+
+                        friend = friendRepository.save(friend);
+
+                        // Convert to DTO
+                        ResFriendDTO friendDTO = friendMapper.toResFriendDTO(friend);
+
+                        log.info("Sending WebSocket notification for friend request: {}", friendDTO);
+
+                        // Gửi thông báo WebSocket về cho người nhận lời mời kết bạn
+                        webSocketService.sendPrivateNotification(
+                                        receiverUser.getId(),
+                                        "NEW_FRIEND_REQUEST",
+                                        friendDTO);
+
+                        // Gửi thông báo test đến debug topic để kiểm tra
+                        webSocketService.sendGlobalNotification(
+                                        "DEBUG_NEW_FRIEND_REQUEST",
+                                        friendDTO);
+
+                        return friendDTO;
+                } catch (Exception e) {
+                        log.error("Error sending friend request: {}", e.getMessage(), e);
+                        throw e;
+                }
         }
 
-        // Create new friend request
-        Friend friend = new Friend();
-        friend.setSender(currentUser);
-        friend.setReceiver(receiverUser);
-        friend.setStatus(FriendStatus.PENDING);
+        public ResFriendDTO acceptFriendRequest(Long friendRequestId) {
+                // Get current logged-in user
+                String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
+                                () -> new RuntimeException("User not authenticated"));
+                User currentUser = userRepository.findByEmail(currentUserEmail)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        friend = friendRepository.save(friend);
+                // Get friend request
+                Friend friend = friendRepository.findById(friendRequestId)
+                                .orElseThrow(() -> new RuntimeException("Friend request not found"));
 
-        return friendMapper.toResFriendDTO(friend);
-    }
+                // Verify that current user is the receiver
+                if (friend.getReceiver().getId() != currentUser.getId()) {
+                        throw new RuntimeException("Not authorized to accept this friend request");
+                }
 
-    public ResFriendDTO acceptFriendRequest(Long friendRequestId) {
-        // Get current logged-in user
-        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
-                () -> new RuntimeException("User not authenticated"));
-        User currentUser = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                // Update friend request status
+                friend.setStatus(FriendStatus.ACCEPTED);
+                friend = friendRepository.save(friend);
 
-        // Get friend request
-        Friend friend = friendRepository.findById(friendRequestId)
-                .orElseThrow(() -> new RuntimeException("Friend request not found"));
-
-        // Verify that current user is the receiver
-        if (friend.getReceiver().getId() != currentUser.getId()) {
-            throw new RuntimeException("Not authorized to accept this friend request");
+                return friendMapper.toResFriendDTO(friend);
         }
 
-        // Update friend request status
-        friend.setStatus(FriendStatus.ACCEPTED);
-        friend = friendRepository.save(friend);
+        public ResFriendDTO rejectFriendRequest(Long friendRequestId) {
+                // Get current logged-in user
+                String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
+                                () -> new RuntimeException("User not authenticated"));
+                User currentUser = userRepository.findByEmail(currentUserEmail)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return friendMapper.toResFriendDTO(friend);
-    }
+                // Get friend request
+                Friend friend = friendRepository.findById(friendRequestId)
+                                .orElseThrow(() -> new RuntimeException("Friend request not found"));
 
-    public ResFriendDTO rejectFriendRequest(Long friendRequestId) {
-        // Get current logged-in user
-        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
-                () -> new RuntimeException("User not authenticated"));
-        User currentUser = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                // Verify that current user is the receiver
+                if (friend.getReceiver().getId() != currentUser.getId()) {
+                        throw new RuntimeException("Not authorized to reject this friend request");
+                }
 
-        // Get friend request
-        Friend friend = friendRepository.findById(friendRequestId)
-                .orElseThrow(() -> new RuntimeException("Friend request not found"));
+                // Update friend request status
+                friend.setStatus(FriendStatus.REJECTED);
+                friend = friendRepository.save(friend);
 
-        // Verify that current user is the receiver
-        if (friend.getReceiver().getId() != currentUser.getId()) {
-            throw new RuntimeException("Not authorized to reject this friend request");
+                return friendMapper.toResFriendDTO(friend);
         }
 
-        // Update friend request status
-        friend.setStatus(FriendStatus.REJECTED);
-        friend = friendRepository.save(friend);
+        public List<ResFriendDTO> getReceivedFriendRequests() {
+                // Get current logged-in user
+                String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
+                                () -> new RuntimeException("User not authenticated"));
+                User currentUser = userRepository.findByEmail(currentUserEmail)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return friendMapper.toResFriendDTO(friend);
-    }
+                List<Friend> pendingRequests = friendRepository.findByReceiverAndStatus(currentUser,
+                                FriendStatus.PENDING);
+                return pendingRequests.stream()
+                                .map(friendMapper::toResFriendDTO)
+                                .collect(Collectors.toList());
+        }
 
-    public List<ResFriendDTO> getReceivedFriendRequests() {
-        // Get current logged-in user
-        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
-                () -> new RuntimeException("User not authenticated"));
-        User currentUser = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+        public List<ResFriendDTO> getFriends() {
+                // Get current logged-in user
+                String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
+                                () -> new RuntimeException("User not authenticated"));
+                User currentUser = userRepository.findByEmail(currentUserEmail)
+                                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        List<Friend> pendingRequests = friendRepository.findByReceiverAndStatus(currentUser, FriendStatus.PENDING);
-        return pendingRequests.stream()
-                .map(friendMapper::toResFriendDTO)
-                .collect(Collectors.toList());
-    }
+                // Get friend requests where user is sender or receiver and status is ACCEPTED
+                List<Friend> friends = friendRepository.findBySenderIdOrReceiverIdAndStatus(
+                                currentUser.getId(), currentUser.getId(), FriendStatus.ACCEPTED);
 
-    public List<ResFriendDTO> getFriends() {
-        // Get current logged-in user
-        String currentUserEmail = SecurityUtil.getCurrentUserLogin().orElseThrow(
-                () -> new RuntimeException("User not authenticated"));
-        User currentUser = userRepository.findByEmail(currentUserEmail)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        // Get friend requests where user is sender or receiver and status is ACCEPTED
-        List<Friend> friends = friendRepository.findBySenderIdOrReceiverIdAndStatus(
-                currentUser.getId(), currentUser.getId(), FriendStatus.ACCEPTED);
-
-        return friends.stream()
-                .map(friendMapper::toResFriendDTO)
-                .collect(Collectors.toList());
-    }
+                return friends.stream()
+                                .map(friendMapper::toResFriendDTO)
+                                .collect(Collectors.toList());
+        }
 }
