@@ -17,6 +17,7 @@ public interface UserMapper {
     @Mapping(target = "isFriend", source = "isFriend")
     @Mapping(target = "requestSent", source = "requestSent")
     @Mapping(target = "requestReceived", source = "requestReceived")
+    @Mapping(target = "friendsId", source = "friendsId")
     ResUserWithFriendStatusDTO toResUserWithFriendStatusDTO(User user, boolean isFriend,
-            boolean requestSent, boolean requestReceived);
+            boolean requestSent, boolean requestReceived, Long friendsId);
 }

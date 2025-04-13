@@ -10,6 +10,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import mobile.doan.supertodolist.dto.request.ReqUserDTO;
@@ -17,7 +18,8 @@ import mobile.doan.supertodolist.dto.response.ResPaginationDTO;
 import mobile.doan.supertodolist.dto.response.ResUserDTO;
 import mobile.doan.supertodolist.dto.response.ResUserWithFriendStatusDTO;
 import mobile.doan.supertodolist.mapper.UserMapper;
-import mobile.doan.supertodolist.model.Post;
+import mobile.doan.supertodolist.model.Friend;
+import mobile.doan.supertodolist.model.Friend.FriendStatus;
 import mobile.doan.supertodolist.model.User;
 import mobile.doan.supertodolist.repository.FriendRepository;
 import mobile.doan.supertodolist.repository.UserRepository;
@@ -46,6 +48,7 @@ public class UserService {
         return resUserDTO;
     }
 
+    @Transactional
     public ResPaginationDTO getAllUserWithPagination(Specification<User> spec, Pageable pageable) {
         // Get current logged-in user ID
         Optional<String> currentUserEmailOpt = SecurityUtil.getCurrentUserLogin();
@@ -77,19 +80,37 @@ public class UserService {
             boolean isFriend = false;
             boolean requestSent = false;
             boolean requestReceived = false;
+            Long friendsId = null;
 
             // If current user is logged in, check friendship and request status
             if (finalCurrentUserId != null && user.getId() != finalCurrentUserId) {
+                // Check if users are friends
                 isFriend = friendRepository.areFriends(finalCurrentUserId, user.getId());
 
-                // Only check request status if they're not already friends
+                // Get any friend record between these two users regardless of status
+                User currentUser = userRepository.findById(finalCurrentUserId).orElse(null);
+                if (currentUser != null) {
+                    // Check if current user is the sender
+                    List<Friend> friendAsSender = friendRepository.findBySenderAndReceiver(currentUser, user);
+                    if (!friendAsSender.isEmpty()) {
+                        friendsId = friendAsSender.get(0).getId();
+                    } else {
+                        // If not found as sender, check as receiver
+                        List<Friend> friendAsReceiver = friendRepository.findBySenderAndReceiver(user, currentUser);
+                        if (!friendAsReceiver.isEmpty()) {
+                            friendsId = friendAsReceiver.get(0).getId();
+                        }
+                    }
+                }
+
+                // Check friend request status if they're not already friends
                 if (!isFriend) {
                     requestSent = friendRepository.hasRequestSent(finalCurrentUserId, user.getId());
                     requestReceived = friendRepository.hasRequestReceived(finalCurrentUserId, user.getId());
                 }
             }
 
-            return userMapper.toResUserWithFriendStatusDTO(user, isFriend, requestSent, requestReceived);
+            return userMapper.toResUserWithFriendStatusDTO(user, isFriend, requestSent, requestReceived, friendsId);
         }).collect(Collectors.toList());
 
         rs.setResult(listResUserDTO);

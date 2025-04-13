@@ -22,4 +22,5 @@ public class ResUserWithFriendStatusDTO {
     boolean isFriend;
     boolean requestSent;
     boolean requestReceived;
+    Long friendsId;
 }
