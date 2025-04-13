@@ -42,4 +42,6 @@ public interface FriendRepository extends JpaRepository<Friend, Long>, JpaSpecif
         @Query("SELECT CASE WHEN COUNT(f) > 0 THEN true ELSE false END FROM Friend f WHERE " +
                         "f.sender.id = :otherUserId AND f.receiver.id = :currentUserId AND f.status = 'PENDING'")
         boolean hasRequestReceived(@Param("currentUserId") long currentUserId, @Param("otherUserId") long otherUserId);
+
+        Friend findBySenderAndReceiverAndStatus(User sender, User receiver, FriendStatus status);
 }

@@ -5,6 +5,7 @@ import java.util.stream.Collectors;
 
 import org.springframework.stereotype.Service;
 
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
 import lombok.extern.slf4j.Slf4j;
@@ -29,6 +30,7 @@ public class FriendService {
         FriendMapper friendMapper;
         NotificationService notificationService;
 
+        @Transactional
         public ResFriendDTO sendFriendRequest(ReqFriendDTO reqFriendDTO) {
                 try {
                         // Get current logged-in user
@@ -54,9 +56,16 @@ public class FriendService {
 
                         // Create new friend request
                         Friend friend = new Friend();
-                        friend.setSender(currentUser);
-                        friend.setReceiver(receiverUser);
-                        friend.setStatus(FriendStatus.PENDING);
+                        if (friendRepository.findBySenderAndReceiverAndStatus(currentUser, receiverUser,
+                                        FriendStatus.REJECTED) != null) {
+                                friend = friendRepository.findBySenderAndReceiverAndStatus(currentUser, receiverUser,
+                                                FriendStatus.REJECTED);
+                                friend.setStatus(FriendStatus.PENDING);
+                        } else {
+                                friend.setSender(currentUser);
+                                friend.setReceiver(receiverUser);
+                                friend.setStatus(FriendStatus.PENDING);
+                        }
 
                         friend = friendRepository.save(friend);
 
@@ -64,13 +73,16 @@ public class FriendService {
                         ResFriendDTO friendDTO = friendMapper.toResFriendDTO(friend);
 
                         log.info("Friend request created with ID: {}", friend.getId());
-                        log.info("Sending WebSocket notification for friend request to user ID: {}",
-                                        receiverUser.getId());
+
+                        // Tạo notification trong database
+                        notificationService.createFriendRequestNotification(receiverUser, friend);
 
                         // Gửi thông báo WebSocket đến người nhận lời mời kết bạn
+                        log.info("Sending WebSocket notification for friend request to user ID: {}",
+                                        receiverUser.getId());
                         notificationService.sendFriendRequestNotification(receiverUser.getId(), friendDTO);
 
-                        log.info("WebSocket notification sent successfully");
+                        log.info("Friend request process completed successfully");
 
                         return friendDTO;
                 } catch (Exception e) {
@@ -98,6 +110,9 @@ public class FriendService {
                 // Update friend request status
                 friend.setStatus(FriendStatus.ACCEPTED);
                 friend = friendRepository.save(friend);
+
+                // Create a notification for the sender that their request was accepted
+                notificationService.createFriendAcceptedNotification(friend.getSender(), friend);
 
                 return friendMapper.toResFriendDTO(friend);
         }
