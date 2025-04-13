@@ -19,7 +19,7 @@ public class WebSocketService {
 
     /**
      * Gửi thông báo đến một người dùng cụ thể
-     * 
+     *
      * @param userId  ID của người dùng nhận thông báo
      * @param type    Loại thông báo
      * @param content Nội dung thông báo
@@ -43,13 +43,14 @@ public class WebSocketService {
             // chuỗi
             messagingTemplate.convertAndSend("/topic/debug", message);
         } catch (Exception e) {
-            log.error("Error sending WebSocket notification to user {}: {}", userId, e.getMessage());
+            log.error("Error sending WebSocket notification to user {}: {}", userId,
+                    e.getMessage());
         }
     }
 
     /**
      * Gửi thông báo đến tất cả người dùng đang kết nối
-     * 
+     *
      * @param type    Loại thông báo
      * @param content Nội dung thông báo
      */

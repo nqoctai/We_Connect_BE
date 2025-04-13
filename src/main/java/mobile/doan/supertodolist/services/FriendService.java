@@ -6,8 +6,8 @@ import java.util.stream.Collectors;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import lombok.experimental.FieldDefaults;
+import lombok.extern.slf4j.Slf4j;
 import mobile.doan.supertodolist.dto.request.ReqFriendDTO;
 import mobile.doan.supertodolist.dto.response.ResFriendDTO;
 import mobile.doan.supertodolist.mapper.FriendMapper;
@@ -27,7 +27,7 @@ public class FriendService {
         FriendRepository friendRepository;
         UserRepository userRepository;
         FriendMapper friendMapper;
-        WebSocketService webSocketService;
+        NotificationService notificationService;
 
         public ResFriendDTO sendFriendRequest(ReqFriendDTO reqFriendDTO) {
                 try {
@@ -40,6 +40,8 @@ public class FriendService {
                         // Get target user
                         User receiverUser = userRepository.findById(reqFriendDTO.getReceiverId())
                                         .orElseThrow(() -> new RuntimeException("Receiver user not found"));
+
+                        log.info("Processing friend request from {} to {}", currentUser.getId(), receiverUser.getId());
 
                         // Check if friend request already exists
                         if (friendRepository.existsBySenderAndReceiverAndStatus(currentUser, receiverUser,
@@ -61,18 +63,14 @@ public class FriendService {
                         // Convert to DTO
                         ResFriendDTO friendDTO = friendMapper.toResFriendDTO(friend);
 
-                        log.info("Sending WebSocket notification for friend request: {}", friendDTO);
+                        log.info("Friend request created with ID: {}", friend.getId());
+                        log.info("Sending WebSocket notification for friend request to user ID: {}",
+                                        receiverUser.getId());
 
-                        // Gửi thông báo WebSocket về cho người nhận lời mời kết bạn
-                        webSocketService.sendPrivateNotification(
-                                        receiverUser.getId(),
-                                        "NEW_FRIEND_REQUEST",
-                                        friendDTO);
+                        // Gửi thông báo WebSocket đến người nhận lời mời kết bạn
+                        notificationService.sendFriendRequestNotification(receiverUser.getId(), friendDTO);
 
-                        // Gửi thông báo test đến debug topic để kiểm tra
-                        webSocketService.sendGlobalNotification(
-                                        "DEBUG_NEW_FRIEND_REQUEST",
-                                        friendDTO);
+                        log.info("WebSocket notification sent successfully");
 
                         return friendDTO;
                 } catch (Exception e) {
