@@ -47,9 +47,11 @@ public class Post {
     private User user;
 
     @OneToMany(mappedBy = "post")
+    @JsonIgnoreProperties({ "post" })
     private List<Like> likes;
 
     @OneToMany(mappedBy = "post")
+    @JsonIgnoreProperties({ "post" })
     private List<Comment> comments;
 
     @PrePersist

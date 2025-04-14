@@ -41,6 +41,9 @@ public class Notification {
     private Post post; // nullable
 
     @ManyToOne
+    private Like like; // nullable
+
+    @ManyToOne
     private Comment comment; // nullable
 
     @ManyToOne

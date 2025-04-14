@@ -3,6 +3,9 @@ package mobile.doan.supertodolist.model;
 import java.time.Instant;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -53,12 +56,15 @@ public class User {
     private String updatedBy;
 
     @OneToMany(mappedBy = "user")
+    @JsonIgnoreProperties({ "user", "likes", "comments" })
     private List<Post> posts;
 
     @OneToMany(mappedBy = "user")
+    @JsonIgnoreProperties({ "user", "post" })
     private List<Like> likes;
 
     @OneToMany(mappedBy = "user")
+    @JsonIgnoreProperties({ "user", "post" })
     private List<Comment> comments;
 
     @OneToMany(mappedBy = "sender")

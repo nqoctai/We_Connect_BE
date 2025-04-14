@@ -12,10 +12,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import mobile.doan.supertodolist.dto.response.ResFriendDTO;
+
+import mobile.doan.supertodolist.dto.response.ResNotificationDTO;
 import mobile.doan.supertodolist.dto.response.ResPaginationDTO;
 import mobile.doan.supertodolist.dto.websocket.WebSocketMessage;
 import mobile.doan.supertodolist.model.Comment;
 import mobile.doan.supertodolist.model.Friend;
+import mobile.doan.supertodolist.model.Like;
 import mobile.doan.supertodolist.model.Notification;
 import mobile.doan.supertodolist.model.Post;
 import mobile.doan.supertodolist.model.User;
@@ -99,7 +102,7 @@ public class NotificationService {
     /**
      * Create a notification when a post is liked
      */
-    public Notification createPostLikedNotification(User postOwner, Post likedPost, User liker) {
+    public Notification createPostLikedNotification(User postOwner, Post likedPost, User liker, Like like) {
         // Don't create notification if user likes their own post
         if (postOwner.getId() == liker.getId()) {
             return null;
@@ -110,6 +113,7 @@ public class NotificationService {
         notification.setType(NotificationType.POST_LIKED);
         notification.setPost(likedPost);
         notification.setRead(false);
+        notification.setLike(like);
 
         notification = notificationRepository.save(notification);
         log.info("Created post liked notification ID: {} for user ID: {}", notification.getId(), postOwner.getId());
@@ -166,7 +170,35 @@ public class NotificationService {
         meta.setTotal(pageNoti.getTotalElements());
         rs.setMeta(meta);
         List<Notification> listNoti = pageNoti.getContent();
-        rs.setResult(listNoti);
+        List<ResNotificationDTO> listResNoti = listNoti.stream().map(noti -> {
+            ResNotificationDTO resNoti = new ResNotificationDTO();
+            resNoti.setId(noti.getId());
+            resNoti.setType(noti.getType());
+            resNoti.setPostId(noti.getPost() != null ? noti.getPost().getId() : null);
+            resNoti.setUserId(noti.getUser().getId());
+            resNoti.setRead(false);
+            resNoti.setCreatedAt(noti.getCreatedAt());
+            resNoti.setUpdatedAt(noti.getUpdatedAt());
+            resNoti.setCommentId(noti.getComment() != null ? noti.getComment().getId() : null);
+            resNoti.setFriendId(noti.getFriend() != null ? noti.getFriend().getId() : null);
+            resNoti.setLikeId(noti.getPost() != null ? noti.getPost().getId() : null);
+            resNoti.setUserName(noti.getUser().getName());
+            if (noti.getType() == NotificationType.POST_LIKED) {
+                if (noti.getLike() != null) {
+                    resNoti.setContent(noti.getLike().getUser().getName() + " đã thích bài viết của bạn");
+                } else {
+                    resNoti.setContent("Người ẩn danh đã thích bài viết của bạn");
+
+                }
+            } else if (noti.getType() == NotificationType.POST_COMMENTED) {
+                resNoti.setContent(noti.getComment().getUser().getName() + " đã bình luận bài viết của bạn");
+            } else if (noti.getType() == NotificationType.FRIEND_REQUEST) {
+                resNoti.setContent(noti.getFriend().getSender().getName() + " đã gửi yêu cầu kết bạn tới bạn");
+            }
+
+            return resNoti;
+        }).toList();
+        rs.setResult(listResNoti);
         return rs;
     }
 
