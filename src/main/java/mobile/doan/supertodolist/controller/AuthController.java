@@ -22,6 +22,7 @@ import mobile.doan.supertodolist.dto.response.ApiResponse;
 import mobile.doan.supertodolist.dto.response.ResLoginDTO;
 import mobile.doan.supertodolist.dto.response.ResUserDTO;
 import mobile.doan.supertodolist.services.AuthService;
+import mobile.doan.supertodolist.services.UserService;
 import mobile.doan.supertodolist.util.SecurityUtil;
 import mobile.doan.supertodolist.util.error.AppException;
 
@@ -31,97 +32,119 @@ import mobile.doan.supertodolist.util.error.AppException;
 @FieldDefaults(level = lombok.AccessLevel.PRIVATE)
 public class AuthController {
 
-    final AuthService authService;
-    final SecurityUtil securityUtil;
+        final UserService userService;
 
-    @Value("${nqoctai.jwt.refresh-token-validity-in-seconds}")
-    long refreshTokenExpiration;
+        final AuthService authService;
+        final SecurityUtil securityUtil;
 
-    @PostMapping("/login")
-    public ResponseEntity<ApiResponse<ResLoginDTO>> login(@RequestBody ReqLoginDTO rqLogin) throws AppException {
-        ResLoginDTO res = this.authService.login(rqLogin);
-        String refreshToken = this.securityUtil.createRefreshToken(res.getUser().getEmail());
-        ResponseCookie resCookies = ResponseCookie
-                .from("refresh_token", refreshToken)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(refreshTokenExpiration)
-                .build();
-        ApiResponse<ResLoginDTO> response = ApiResponse.<ResLoginDTO>builder()
-                .status(200)
-                .message("Login successful")
-                .data(res)
-                .build();
+        @Value("${nqoctai.jwt.refresh-token-validity-in-seconds}")
+        long refreshTokenExpiration;
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, resCookies.toString())
-                .body(response);
-    }
+        @PostMapping("/login")
+        public ResponseEntity<ApiResponse<ResLoginDTO>> login(@RequestBody ReqLoginDTO rqLogin) throws AppException {
+                ResLoginDTO res = this.authService.login(rqLogin);
+                String refreshToken = this.securityUtil.createRefreshToken(res.getUser().getEmail());
+                ResponseCookie resCookies = ResponseCookie
+                                .from("refresh_token", refreshToken)
+                                .httpOnly(true)
+                                .secure(true)
+                                .path("/")
+                                .maxAge(refreshTokenExpiration)
+                                .build();
+                ApiResponse<ResLoginDTO> response = ApiResponse.<ResLoginDTO>builder()
+                                .status(200)
+                                .message("Login successful")
+                                .data(res)
+                                .build();
 
-    @PostMapping("/register")
-    public ResponseEntity<ApiResponse<ResUserDTO>> register(@RequestBody ReqUserDTO rqUser) throws AppException {
-        ResUserDTO res = this.authService.register(rqUser);
-        ApiResponse<ResUserDTO> response = ApiResponse.<ResUserDTO>builder()
-                .status(200)
-                .message("Register successful")
-                .data(res)
-                .build();
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/profile")
-    public ResponseEntity<ApiResponse<ResUserDTO>> getCurrentUser() throws AppException {
-        ResUserDTO res = this.authService.getCurrentUser();
-        ApiResponse<ResUserDTO> response = ApiResponse.<ResUserDTO>builder()
-                .status(200)
-                .message("Get current user successful")
-                .data(res)
-                .build();
-
-        return ResponseEntity.ok(response);
-    }
-
-    @GetMapping("/refresh")
-    public ResponseEntity<ApiResponse<ResLoginDTO>> getRefreshToken(
-            @CookieValue(name = "refresh_token", defaultValue = "abc") String refresh_token)
-            throws AppException {
-        if (refresh_token.equals("abc")) {
-            throw new AppException("Bạn không có refresh token ở cookie");
+                return ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, resCookies.toString())
+                                .body(response);
         }
 
-        // check valid
-        Jwt decodedToken = this.securityUtil.checkValidRefreshToken(refresh_token);
-        String email = decodedToken.getSubject();
+        @PostMapping("/register")
+        public ResponseEntity<ApiResponse<ResUserDTO>> register(@RequestBody ReqUserDTO rqUser) throws AppException {
+                ResUserDTO res = this.authService.register(rqUser);
+                ApiResponse<ResUserDTO> response = ApiResponse.<ResUserDTO>builder()
+                                .status(200)
+                                .message("Register successful")
+                                .data(res)
+                                .build();
 
-        if (email == null) {
-            throw new AppException("Refresh token không hợp lệ");
+                return ResponseEntity.ok(response);
         }
 
-        ResLoginDTO resLoginDTO = this.authService.getRefreshToken(email);
+        @GetMapping("/profile")
+        public ResponseEntity<ApiResponse<ResUserDTO>> getCurrentUser() throws AppException {
+                ResUserDTO res = this.authService.getCurrentUser();
+                ApiResponse<ResUserDTO> response = ApiResponse.<ResUserDTO>builder()
+                                .status(200)
+                                .message("Get current user successful")
+                                .data(res)
+                                .build();
 
-        // create new refresh token
-        String new_refresh_token = this.securityUtil.createRefreshToken(email);
+                return ResponseEntity.ok(response);
+        }
 
-        // set new refresh token to cookie
-        ResponseCookie resCookies = ResponseCookie
-                .from("refresh_token", new_refresh_token)
-                .httpOnly(true)
-                .secure(true)
-                .path("/")
-                .maxAge(refreshTokenExpiration)
-                .build();
+        @GetMapping("/refresh")
+        public ResponseEntity<ApiResponse<ResLoginDTO>> getRefreshToken(
+                        @CookieValue(name = "refresh_token", defaultValue = "abc") String refresh_token)
+                        throws AppException {
+                if (refresh_token.equals("abc")) {
+                        throw new AppException("Bạn không có refresh token ở cookie");
+                }
 
-        ApiResponse<ResLoginDTO> response = ApiResponse.<ResLoginDTO>builder()
-                .status(HttpStatus.OK.value())
-                .message("Refresh token successful")
-                .data(resLoginDTO)
-                .build();
+                // check valid
+                Jwt decodedToken = this.securityUtil.checkValidRefreshToken(refresh_token);
+                String email = decodedToken.getSubject();
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.SET_COOKIE, resCookies.toString())
-                .body(response);
+                if (email == null) {
+                        throw new AppException("Refresh token không hợp lệ");
+                }
 
-    }
+                ResLoginDTO resLoginDTO = this.authService.getRefreshToken(email);
+
+                // create new refresh token
+                String new_refresh_token = this.securityUtil.createRefreshToken(email);
+
+                // set new refresh token to cookie
+                ResponseCookie resCookies = ResponseCookie
+                                .from("refresh_token", new_refresh_token)
+                                .httpOnly(true)
+                                .secure(true)
+                                .path("/")
+                                .maxAge(refreshTokenExpiration)
+                                .build();
+
+                ApiResponse<ResLoginDTO> response = ApiResponse.<ResLoginDTO>builder()
+                                .status(HttpStatus.OK.value())
+                                .message("Refresh token successful")
+                                .data(resLoginDTO)
+                                .build();
+
+                return ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, resCookies.toString())
+                                .body(response);
+        }
+
+        @PostMapping("/logout")
+        public ResponseEntity<Void> logout() throws AppException {
+                String email = SecurityUtil.getCurrentUserLogin().isPresent() ? SecurityUtil.getCurrentUserLogin().get()
+                                : "";
+
+                if (email.equals("")) {
+                        throw new AppException("Access token không hợp lệ");
+                }
+
+                ResponseCookie deleteSpringCookie = ResponseCookie
+                                .from("refresh_token", null)
+                                .httpOnly(true)
+                                .secure(true)
+                                .path("/")
+                                .maxAge(0)
+                                .build();
+                return ResponseEntity.ok()
+                                .header(HttpHeaders.SET_COOKIE, deleteSpringCookie.toString())
+                                .body(null);
+        }
 }
